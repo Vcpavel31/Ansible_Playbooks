@@ -1,0 +1,43 @@
+- hosts: Raspberry
+  become: yes
+  tasks:
+    - name: Ensure apt-transport-https is installed
+      apt:
+        name: apt-transport-https
+        state: present
+
+    - name: Create apt bookworm firmware fix
+      copy:
+        dest: /etc/apt/apt.conf.d/no-bookworm-firmware.conf
+        content: APT::Get::Update::SourceListWarnings::NonFreeFirmware "false";
+
+    - name: Add Debian bullseye Repository
+      apt_repository:
+        repo: deb http://deb.debian.org/debian/ bullseye main
+        state: present
+
+    - name: Add Debian bookworm Repository
+      apt_repository:
+        repo: deb http://deb.debian.org/debian/ bookworm main
+        state: present
+
+    - name: Add Debian sid Repository
+      apt_repository:
+        repo: deb http://deb.debian.org/debian/ sid main
+        state: present
+
+    - name: Run the equivalent of "apt-get update" as a separate step
+      apt:
+        update_cache: yes
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Autoremove unnecessary packages
+      apt:
+        autoremove: yes
+
+    - name: Autoclean package files
+      apt:
+        autoclean: yes
