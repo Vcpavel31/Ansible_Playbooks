@@ -42,6 +42,14 @@
       apt:
         autoclean: yes
 
+    - name: Install essential packages
+      apt:
+        name: 
+          - htop
+          - git
+          - wget
+        state: present
+
     - name: Set Wait for network on boot
       shell: "raspi-config nonint do_boot_wait 0"
 
