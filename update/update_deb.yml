@@ -20,4 +20,5 @@
           Content-Type: "application/json"
         body:
           content: "A reboot is required on {{ inventory_hostname }}"
+        status_code: 204
       when: reboot_required_file.stat.exists
