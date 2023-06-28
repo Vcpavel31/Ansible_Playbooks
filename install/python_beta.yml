@@ -1,0 +1,80 @@
+- hosts: development
+  become: yes
+  vars:
+    prefix: "/usr/local"
+    pyver: "3.12"
+    python_url: "https://www.python.org/ftp/python/3.12.0/Python-3.12.0b3.tgz"
+    build_dir: "/tmp/python-build"
+
+  tasks:
+    - name: Ensure necessary packages are installed
+      apt:
+        name:
+          - build-essential
+          - zlib1g-dev
+        state: present
+
+    - name: Check if Python {{ pyver }} is installed
+      stat:
+        path: "{{ prefix }}/bin/python{{ pyver }}"
+      register: python_installed
+
+    - name: Remove Python {{ pyver }} if it's installed
+      command: |
+        rm -rf \
+          $HOME/.local/lib/python{{ pyver }} \
+          {{ prefix }}/bin/python{{ pyver }} \
+          {{ prefix }}/bin/python{{ pyver }}-config \
+          {{ prefix }}/bin/pip{{ pyver }} \
+          {{ prefix }}/bin/pydoc \
+          {{ prefix }}/bin/include/python{{ pyver }} \
+          {{ prefix }}/lib/libpython{{ pyver }}.a \
+          {{ prefix }}/lib/python{{ pyver }} \
+          {{ prefix }}/lib/pkgconfig/python-{{ pyver }}.pc \
+          {{ prefix }}/lib/libpython{{ pyver }}m.a \
+          {{ prefix }}/bin/python{{ pyver }}m \
+          {{ prefix }}/bin/2to3-{{ pyver }} \
+          {{ prefix }}/bin/python{{ pyver }}m-config \
+          {{ prefix }}/bin/idle{{ pyver }} \
+          {{ prefix }}/bin/pydoc{{ pyver }} \
+          {{ prefix }}/bin/pyvenv-{{ pyver }} \
+          {{ prefix }}/share/man/man1/python{{ pyver }}.1 \
+          {{ prefix }}/include/python{{ pyver }}m \
+          {{ prefix }}/bin/easy_install-{{ pyver }}
+      when: python_installed.stat.exists
+
+    - name: Create build directory
+      file:
+        path: "{{ build_dir }}"
+        state: directory
+
+    - name: Download Python source
+      get_url:
+        url: "{{ python_url }}"
+        dest: "{{ build_dir }}/Python-{{ pyver }}.tgz"
+
+    - name: Extract Python source
+      unarchive:
+        src: "{{ build_dir }}/Python-{{ pyver }}.tgz"
+        dest: "{{ build_dir }}"
+        remote_src: yes
+
+    - name: Configure Python build
+      command:
+        cmd: "./configure --prefix={{ prefix }}"
+        chdir: "{{ build_dir }}/Python-{{ pyver }}"
+
+    - name: Build Python
+      command:
+        cmd: "make -j$(nproc)"
+        chdir: "{{ build_dir }}/Python-{{ pyver }}"
+
+    - name: Install Python
+      command:
+        cmd: "make altinstall"
+        chdir: "{{ build_dir }}/Python-{{ pyver }}"
+
+    - name: Clean up build directory
+      file:
+        path: "{{ build_dir }}"
+        state: absent
