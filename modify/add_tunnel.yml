@@ -1,0 +1,21 @@
+- hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Add new tunnel to wg0.conf
+      blockinfile:
+        path: /etc/wireguard/wg0.conf
+        marker: "# {mark} ANSIBLE MANAGED BLOCK FOR NODE - {{ Node_Name }}"
+        block: |
+          [Peer]
+          PublicKey = {{ Node_PUBKEY }}
+          PresharedKey = {{ Node_PREKEY }}
+          AllowedIPs = {{ Node_IP }}/32
+          Endpoint = {{ Node_ENDPOINT }}:51820
+          PersistentKeepalive = 25
+      become: yes
+
+    - name: Restart wg-quick
+      systemd:
+        name: wg-quick@wg0
+        state: restarted
+      become: yes

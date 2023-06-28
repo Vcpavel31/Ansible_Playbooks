@@ -1,0 +1,219 @@
+- hosts: all
+  become: yes
+  tasks:
+    - name: Ensure apt-transport-https is installed
+      apt:
+        name: apt-transport-https
+        state: present
+
+    - name: Create apt bookworm firmware fix
+      copy:
+        dest: /etc/apt/apt.conf.d/no-bookworm-firmware.conf
+        content: APT::Get::Update::SourceListWarnings::NonFreeFirmware "false";
+
+    - name: Add Debian bullseye Repository
+      apt_repository:
+        repo: deb http://deb.debian.org/debian/ bullseye main
+        state: present
+
+    - name: Add Debian bookworm Repository
+      apt_repository:
+        repo: deb http://deb.debian.org/debian/ bookworm main
+        state: present
+
+    - name: Add Debian sid Repository
+      apt_repository:
+        repo: deb http://deb.debian.org/debian/ sid main
+        state: present
+
+    - name: Run the equivalent of "apt-get update" as a separate step
+      apt:
+        update_cache: yes
+
+    - name: Upgrade all packages
+      apt:
+        upgrade: dist
+
+    - name: Autoremove unnecessary packages
+      apt:
+        autoremove: yes
+
+    - name: Autoclean package files
+      apt:
+        autoclean: yes
+
+    - name: Install wireguard, wireguard-tools, squid, and net-tools
+      apt:
+        name:
+          - wireguard
+          - wireguard-tools
+          - squid
+          - net-tools
+        state: present
+
+    - name: Fetch IP from the endpoint
+      uri:
+        url: http://80.211.194.82/IP.php?Range=Forpsi
+        return_content: yes
+      register: fetched_ip
+ 
+    - name: Install wireguard, wireguard-tools, squid, tools
+      apt:
+        name:
+          - wireguard
+          - wireguard-tools
+          - squid
+          - net-tools
+          - htop
+          - gnupg
+        state: present 
+
+    - name: Generate WireGuard private key
+      command:
+        cmd: wg genkey
+      register: wg_private_key
+      check_mode: no
+      changed_when: false
+
+    - name: Generate WireGuard public key
+      command:
+        cmd: echo "{{ wg_private_key.stdout }}" | wg pubkey
+      register: wg_public_key
+      check_mode: no
+      changed_when: false
+
+    - name: Generate WireGuard preshared key
+      command:
+        cmd: wg genpsk
+      register: wg_preshared_key
+      check_mode: no
+      changed_when: false
+
+    - name: Fetch IP from the endpoint
+      uri:
+        url: http://80.211.194.82/IP.php?Range=Forpsi
+        return_content: yes
+      register: fetched_ip
+
+    - name: Create wireguard config with fetched keys and IP
+      copy:
+        dest: /etc/wireguard/wg0.conf
+        content: |
+          [Interface]
+          Address = {{ fetched_ip.content }}/32
+          SaveConfig = false
+          PrivateKey = {{ wg_private_key.stdout }}
+          ListenPort = 51820
+          PostUp = echo 1 > /proc/sys/net/ipv4/ip_forward; echo 1 > /proc/sys/net/ipv6/conf/all/forwarding; iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o ens3 -j MASQUERADE; ip6tables -A FORWARD -i wg0 -j ACCEPT; ip6tables -t nat -A POSTROUTING -o ens3 -j MASQUERADE
+          PostDown = echo 0 > /proc/sys/net/ipv4/ip_forward; echo 0 > /proc/sys/net/ipv6/conf/all/forwarding; iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o ens3 -j MASQUERADE; ip6tables -D FORWARD -i wg0 -j ACCEPT; ip6tables -t nat -D POSTROUTING -o ens3 -j MASQUERADE
+
+          [Peer]
+          PublicKey = yn6FgdTsF4ecM0qbbfV4f7hn5GtyhyglE+pkoL8kDWw=
+          PresharedKey = {{ wg_preshared_key.stdout }}
+          AllowedIPs = 10.0.0.0/8
+          Endpoint = 80.211.194.82:51820
+          PersistentKeepalive = 25
+
+    - name: Start and enable wg-quick@wg0
+      systemd:
+        name: wg-quick@wg0
+        state: started
+        enabled: yes
+
+    - name: Backup the original squid.conf file
+      command: mv /etc/squid/squid.conf /etc/squid/squid.conf_backup
+      
+    - name: Create a new squid.conf file
+      copy:
+        dest: /etc/squid/squid.conf
+        content: |
+          acl localnet src 0.0.0.1-0.255.255.255  # RFC 1122 "this" network (LAN)
+          acl localnet src 10.0.0.0/8              # RFC 1918 local private network (LAN)
+          acl localnet src 100.64.0.0/10           # RFC 659ß8 shared address space (CGN)
+          acl localnet src 169.254.0.0/16          # RFC 3927 link-local (directly plugged) machines
+          acl localnet src 172.16.0.0/12           # RFC 1918 local private network (LAN)
+          acl localnet src 192.0.2.0/24            # RFC 5737 test-net 1
+          acl localnet src 192.168.0.0/16          # RFC 1918 local private network (LAN)
+          acl localnet src 198.51.100.0/24         # RFC 5737 test-net 2
+          acl localnet src 203.0.113.0/24          # RFC 5737 test-net 3
+          acl localnet src fc00::/7                # RFC 4193 local private network range
+          acl localnet src fe80::/10               # RFC 4291 link-local (directly plugged) machines
+
+          acl SSL_ports port 443
+          acl Safe_ports port 80           # http
+          acl Safe_ports port 21           # ftp
+          acl Safe_ports port 443          # https
+          acl Safe_ports port 70           # gopher
+          acl Safe_ports port 210          # wais
+          acl Safe_ports port 1025-65535   # unregistered ports
+          acl Safe_ports port 280          # http-mgmt
+          acl Safe_ports port 488          # gss-http
+          acl Safe_ports port 591          # filemaker
+          acl Safe_ports port 777          # multiling http
+          acl CONNECT method CONNECT
+
+          http_access deny !Safe_ports
+          http_access deny CONNECT !SSL_ports
+
+          http_port {{ fetched_ip.content }}:3128
+
+          acl VPNUsers src 10.0.0.0/8
+          http_access allow VPNUsers
+
+          http_access allow localhost manager
+          http_access deny manager
+
+          http_access allow localhost
+          http_access deny all
+
+          http_reply_access allow all
+          icp_access allow all
+
+          coredump_dir /var/spool/squid
+          refresh_pattern ^ftp:           1440    20%     10080
+          refresh_pattern ^gopher:        1440    0%      1440
+          refresh_pattern -i (/cgi-bin/|\?) 0     0%      0
+          refresh_pattern .               0       20%     4320
+
+    - name: Add iptables rules for squid
+      command: "{{ item }}"
+      loop:
+        - iptables -A INPUT -p tcp --dport 3128 -j ACCEPT
+        - iptables -A OUTPUT -p tcp --dport 3128 -j ACCEPT
+
+    - name: Restart squid
+      systemd:
+        name: squid
+        state: restarted
+
+    - name: Install iptables-persistent and save current iptables rules
+      apt:
+        name: iptables-persistent
+        state: present
+      notify: Save iptables rules
+
+    - name: Send message to Discord if a reboot is needed
+      uri:
+        url: "{{ lookup('env', 'DISCORD_WEBHOOK') }}"
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: "application/json"
+        body:
+          content: "A reboot is required on {{ inventory_hostname }}"
+        status_code: 204
+
+    - name: Modify wireguard on Virgo
+      include_tasks: modify/add_tunnel.yml
+      vars:
+        Node_Name: "{{ ansible_hostname }}"
+        Node_PUBKEY: "{{ wg_public_key.stdout }}"
+        Node_IP: "{{ fetched_ip.content }}"
+        Node_PREKEY: "{{ wg_preshared_key.stdout }}"
+
+  handlers:
+    - name: Save iptables rules
+      command: "{{ item }}"
+      loop:
+        - iptables-save > /etc/iptables/rules.v4
+        - ip6tables-save > /etc/iptables/rules.v6
