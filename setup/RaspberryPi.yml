@@ -41,3 +41,33 @@
     - name: Autoclean package files
       apt:
         autoclean: yes
+
+    - name: Set Wait for network on boot
+      shell: "raspi-config nonint do_boot_wait 0"
+
+    - name: Set Boot behaviour
+      shell: "raspi-config nonint do_boot_behaviour B1"
+
+    - name: Change locale
+      shell: "raspi-config nonint do_change_locale cs_CZ.UTF-8"
+
+    - name: Change timezone
+      shell: "raspi-config nonint do_change_timezone Europe/Prague"
+
+    - name: Change keyboard layout
+      shell: "raspi-config nonint do_configure_keyboard cz"
+
+    - name: Enable network names
+      shell: "raspi-config nonint do_net_names 0"
+
+    - name: Send message to Discord if a reboot is needed
+      uri:
+        url: "{{ lookup('env', 'DISCORD_WEBHOOK') }}"
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: "application/json"
+        body:
+          content: "A reboot is required on {{ inventory_hostname }}"
+        status_code: 204
+      when: reboot_required_file.stat.exists
