@@ -83,18 +83,12 @@
       check_mode: no
       changed_when: false
 
-    - name: Fetch IP from the endpoint
-      uri:
-        url: http://80.211.194.82/IP.php?Range=Forpsi
-        return_content: yes
-      register: fetched_ip
-
     - name: Create wireguard config with fetched keys and IP
       copy:
         dest: /etc/wireguard/wg0.conf
         content: |
           [Interface]
-          Address = {{  ip  }}/32
+          Address = {{ip}}/32
           SaveConfig = false
           PrivateKey = {{ wg_private_key.stdout }}
           ListenPort = 51820
@@ -149,7 +143,7 @@
           http_access deny !Safe_ports
           http_access deny CONNECT !SSL_ports
 
-          http_port {{  ip  }}:3128
+          http_port {{ip}}:3128
 
           acl VPNUsers src 10.0.0.0/8
           http_access allow VPNUsers
@@ -197,13 +191,13 @@
           content: "A reboot is required on {{ inventory_hostname }}"
         status_code: 204
 
-    - name: Modify wireguard on Virgo
-      include_tasks: modify/add_tunnel.yml
-      vars:
-        Node_Name: "{{ ansible_hostname }}"
-        Node_PUBKEY: "{{ wg_public_key.stdout }}"
-        Node_IP: "{{  ip  }}"
-        Node_PREKEY: "{{ wg_preshared_key.stdout }}"
+#    - name: Modify wireguard on Virgo
+#      include_tasks: modify/add_tunnel.yml
+#      vars:
+#        Node_Name: "{{ ansible_hostname }}"
+#        Node_PUBKEY: "{{ wg_public_key.stdout }}"
+#        Node_IP: "{{ip}}"
+#        Node_PREKEY: "{{ wg_preshared_key.stdout }}"
 
   handlers:
     - name: Save iptables rules
