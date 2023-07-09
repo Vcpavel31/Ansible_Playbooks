@@ -88,7 +88,7 @@
         dest: /etc/wireguard/wg0.conf
         content: |
           [Interface]
-          Address = {{ip}}/32
+          Address = {{ empty_ip }}/32
           SaveConfig = false
           PrivateKey = {{ wg_private_key.stdout }}
           ListenPort = 51820
@@ -143,7 +143,7 @@
           http_access deny !Safe_ports
           http_access deny CONNECT !SSL_ports
 
-          http_port {{ip}}:3128
+          http_port {{ empty_ip }}:3128
 
           acl VPNUsers src 10.0.0.0/8
           http_access allow VPNUsers
@@ -196,7 +196,7 @@
 #      vars:
 #        Node_Name: "{{ ansible_hostname }}"
 #        Node_PUBKEY: "{{ wg_public_key.stdout }}"
-#        Node_IP: "{{ip}}"
+#        Node_IP: "{{ empty_ip }}"
 #        Node_PREKEY: "{{ wg_preshared_key.stdout }}"
 
   handlers:
